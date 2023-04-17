@@ -1,0 +1,243 @@
+import paho.mqtt.client as mqtt
+import urllib.request
+import cv2
+import numpy as np
+from PIL import Image
+import pickle
+import os
+import requests
+import time
+import json
+from requests_toolbelt.multipart.encoder import MultipartEncoder
+from datetime import datetime
+import paho.mqtt.client as mqtt
+import base64
+from keras.models import load_model
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+
+
+
+def face_recognition():
+    image = None
+    temp=None
+    flag=False
+
+    def on_connect(client, userdata, flags, rc):
+        print("Connected with result code " + str(rc))
+        client.subscribe("test/pub2")
+        client.subscribe("test/pub")
+
+    def on_message(client, userdata, msg):
+        nonlocal image
+        nonlocal temp
+        if(msg.topic=="test/pub"):
+            temp=str(msg.payload.decode('utf-8'))
+            #print(temp)
+        if(msg.topic=='test/pub2'):
+           image_array = np.frombuffer(msg.payload, np.uint8)
+           if len(msg.payload) > 0:
+               image_array = np.frombuffer(msg.payload, np.uint8)
+               image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+        
+    client = mqtt.Client()
+    client.on_connect = on_connect
+
+    client.on_message = on_message
+
+    client.connect("192.168.43.202", 1883, 60)
+
+    client.loop_start()
+
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    faceDir='dataset'
+    faceTrained='datawajah'
+
+    #initialize text font
+    font=cv2.FONT_HERSHEY_SIMPLEX
+
+
+
+    input_shape = (None,100, 100, 3)
+    model = load_model('face_recognition_02_cnn.h5')
+    
+    count=0
+    while True:
+        cv2.namedWindow=("Decoded Image",cv2.WINDOW_AUTOSIZE)
+        font=cv2.FONT_HERSHEY_SIMPLEX
+        res=None
+        status=0
+        
+        if image is not None:
+            
+            
+            
+            gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+            #face=face_cascade.detectMultiScale(gray,scaleFactor=1.2, minNeighbors=5)
+            #cv2.putText(image,str(temp),(10,50), font, 1, (255, 0, 255), 2, cv2.LINE_AA)
+            
+            face=face_cascade.detectMultiScale(image,scaleFactor=1.2, minNeighbors=5)
+            image_copy=image.copy()
+            MARGIN=7
+            for x,y,w,h in face:
+                x1, y1 = x + MARGIN, y + MARGIN
+                x2, y2 = x + w - MARGIN, y + h - MARGIN
+                #frame=cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),3)
+                image_copy=cv2.rectangle(image,(x,y),(x+w,y+h),(0,0,255),3)
+                cropped_image = image_copy[y:y+h, x:x+w]
+                resized_image = cv2.resize(cropped_image, (100, 100), interpolation = cv2.INTER_AREA)
+                test_image = img_to_array(resized_image)
+                test_image = np.expand_dims(test_image, axis=0)
+                test_image /= 255.0
+                #pred_probs = model.predict(test_image)[0]
+                _, image_data = cv2.imencode('.jpg', cropped_image)
+                image_bytes = image_data.tobytes()
+                
+                threshold = 0.7
+                pred_probs = model.predict(test_image)
+                pred_class = np.argmax(pred_probs, axis=1)[0]
+                pred_prob = pred_probs[0][pred_class]
+
+                
+                print("pred_prob",pred_prob)
+                if pred_prob >= threshold:
+                    res = int(pred_class)
+                    print("res: ",res)
+               
+                #if(status!=200):
+                    #url = 'http://192.168.43.202:8080/suspect'
+                    #body={"measurement":"suspek",
+                    #  "tags": {"kampus": "ITB", "ruang": "4B"},
+                    #  "fields": {"suspek":1},
+                    #  "time": int(datetime.now().timestamp())}
+                    #files={
+                    #    "body":(None,json.dumps(body),"application/json"),
+                    #     "foto":("Tes",open("higharch.jpg",'rb'))}
+                    #count+=1
+                    #print("count",count)
+                    #if(count==10):
+                    #    response=requests.post(url,files=files)
+                    #    status=response.status_code
+                    #    print("Status:", status)
+                        
+                    #elif(count>10):
+                    #    count=0
+                     #res=np.argmax(model.predict(test_image,1,verbose=0),axis=1)
+                #res = model.predict(test_image,1,verbose=0)
+                #threshold = 0.7
+                #print(int(res))
+                #index=int(res)
+                #folder_name = f"dataset//train_01/dataset{index}"
+                #folder_name = folder_name.split("/")[-1]
+                #print(folder_name)
+                #cv2.putText(image_copy,str(folder_name),(x+30,y-50),font,0.5,(255,255,0),1)
+
+
+             
+                    
+              
+                        
+
+                    
+                    
+                
+                #if(pred_probs.any()>threshold):
+                    #res=np.argmax(model.predict(test_image,1,verbose=0),axis=1)
+                #    print(res)
+                #else:
+                #    print("gak kenal")
+                
+                #print(res)
+                
+                #threshold = 0.7
+                #class_names = list(train_generator.class_indices.keys())
+                #for i in range(len(class_names)):
+                #    if pred_probs[i] > threshold:
+                #        print(f"Match found: {class_names[i]}")
+                #    else:
+                #        print("No match found")
+
+                #id, confidence = faceRecognizer.predict(gray[y:y+h,x:x+w])
+
+                #if (confidence < 100):
+                    #nameID = names[1]
+                    #confidenceTxt = "{0}%".format(round(100 - confidence))
+                    #if(temp==0):
+                    #    sus="suspek"
+                        
+                    #elif(temp==None):
+                    #    sus="Non Suspek"
+                #else:
+                    #nameID=names[0]
+                    #confidenceTxt = "{0}%".format(round(100 - confidence))
+                    
+                #cv2.putText(image_copy,str(nameID),(x+30,y-50),font,0.5,(255,255,0),1)
+                #cv2.putText(image_copy,str(confidenceTxt),(x-30,y+50),font,0.5,(255,255,0),1)
+                #cv2.putText(image_copy,str(temp),(x+40,y-30),font,0.5,(255,0,255),1)
+                #cv2.putText(image_copy,str(sus),(x+45,y-25),font,0.5,(255,255,255),1)
+
+            cv2.imshow("Decoded Image", image_copy)
+            
+
+            cv2.waitKey(1)
+            
+            image=None
+            temp=None
+
+
+        else:
+            cv2.waitKey(1) # wait for 100 milliseconds before checking for a new image
+
+    cv2.destroyAllWindows()
+    client.loop_stop()
+face_recognition()
+
+def sendServer():
+     
+    flag=False
+    url = 'http://192.168.43.202:8080/suspect'
+    
+    body={"measurement":"suspek",
+                      "tags": {"kampus": "ITB", "ruang": "4B"},
+                      "fields": {"suspek":1},
+                      "time": int(datetime.now().timestamp())}
+    files={
+        "body":(None,json.dumps(body),"application/json"),
+        "foto":("Tes",face)
+        }
+
+        
+    response=requests.post(url,files=files)
+    data=json.loads(response.content)
+    error_status = data['error']
+
+    print(response.json())
+    print(error_status)
+
+def print_folder():
+
+
+    # specify the path to your dataset folder
+    dataset_path = 'dataset/train_01'
+
+    # list all subfolders inside the dataset folder
+    subfolders = os.listdir(dataset_path)
+
+    # get the subfolder with index 2
+    subfolder_name = subfolders[2]
+
+    # construct the full path to the subfolder
+    subfolder_path = os.path.join(dataset_path, subfolder_name)
+
+    # print the full path to the subfolder
+    print(subfolder_path)
+    folder_name = subfolder_path.split("\\")[-1]
+    print(folder_name)
+#print_folder()
+
+
+
+
+        #192.168.43.103/8080
+
+
